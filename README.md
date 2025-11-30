@@ -1,1 +1,77 @@
-So what I want to build is an AI news aggregator where I can take multiple sources. So for example, YouTube channels and I want for example blog posts from OpenAI and Mropic and I want to scrape those put them into a database where we have some kind of structure where we have sources we have let's call them articles and then what I want to do is I want to run a daily digest where we're going to take all of the articles from within that time frame and we're going to do an LLM summary around that and then based on the user insights that we specify in some kind of agent system prompt. We can generate a daily digest which is going to be short snippets with a link to the original source. Now from the YouTube channels I want to I want to be able to create a list of channels and then we want to get the latest videos from those channels. I think we can use the YouTube RSS feed for that and for for the blog posts we can just have URLs that we can scrape for that. Okay. So I want everything built in a Python back end. I want to use a Postgress SQL database. I want to use SQL alchemy in order to define the database models and then to also create the tables. I want the project structure to be an app folder where all the app logic is in. And then I also want a docker folder where we first create a very minimal setup for the Postgress SQL database. And then that will probably be starting point. We want to make sure that later down the line, we can easily deploy the whole app to render and then also schedule it every 24 hours to run the reports, get everything. And then when we've created the daily digest, I want to send an email to my personal inbox with this. So that's that's what I have in mind. I think that would be pretty cool to build.
+# AI Daily Post Generator
+
+Automated daily aggregator that scrapes AI news from curated sources, generates social media posts using OpenAI, and delivers them via email digest.
+
+## Features
+
+- 🔍 **Smart Scraping**: Fetches articles from RSS feeds (Anthropic, Ars Technica, Surge AI)
+- 🤖 **AI-Powered Content**: Generates LinkedIn posts, X/Twitter posts, and layman explanations
+- 📧 **Email Digest**: Delivers top 5 recent articles via Gmail SMTP
+- 🛡️ **Anti-Backcrawl**: Prevents duplicate fetching of older articles
+- 📝 **Professional Tone**: Uses third-person perspective for reporting
+
+## Setup
+
+1. **Clone and Install**
+   ```bash
+   git clone https://github.com/Ubajaj1/AI-Daily-Post-Generator.git
+   cd AI-Daily-Post-Generator
+   uv sync
+   ```
+
+2. **Configure Environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your credentials:
+   # - DATABASE_URL (PostgreSQL)
+   # - OPENAI_API_KEY
+   # - SENDER_EMAIL, GMAIL_APP_PASSWORD, RECIPIENT_EMAIL
+   ```
+
+3. **Start Database**
+   ```bash
+   docker-compose -f docker/docker-compose.yml up -d
+   ```
+
+4. **Initialize Schema**
+   ```bash
+   .venv/bin/python scripts/drop_and_recreate_tables.py
+   ```
+
+## Usage
+
+**Run the pipeline:**
+```bash
+.venv/bin/python -m app.runner
+```
+
+This will:
+1. Fetch new articles from all sources
+2. Generate posts using OpenAI (GPT-4o-mini)
+3. Send email digest with the 5 most recent articles
+
+**Email includes:**
+- LinkedIn post (professional, third-person)
+- X/Twitter post (under 260 chars)
+- Layman explanation (with analogy)
+- Publication date and article link
+
+## Tech Stack
+
+- **Python 3.13** with `uv` package manager
+- **PostgreSQL** for article storage
+- **OpenAI API** for structured content generation
+- **Docling** for markdown extraction
+- **Gmail SMTP** for email delivery
+
+## Gmail App Password Setup
+
+1. Go to [Google Account Security](https://myaccount.google.com/security)
+2. Enable 2-Step Verification
+3. Search for "App passwords"
+4. Generate password for "Mail"
+5. Add to `.env` as `GMAIL_APP_PASSWORD`
+
+## License
+
+MIT
