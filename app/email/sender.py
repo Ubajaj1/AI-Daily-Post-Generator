@@ -1,0 +1,138 @@
+"""Email sender module using Gmail SMTP."""
+
+import logging
+import smtplib
+import os
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.header import Header
+from datetime import datetime
+
+from ..config import settings
+from ..db import SessionLocal
+from ..models import PostDraft, Article
+
+logger = logging.getLogger(__name__)
+
+
+def send_email(subject: str, html_content: str, to_email: str = None):
+    """Send an email using Gmail SMTP."""
+    sender_email = os.getenv("SENDER_EMAIL", "").strip()
+    # Remove all spaces and non-breaking spaces from app password
+    app_password = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "").replace("\xa0", "").strip()
+    recipient = (to_email or os.getenv("RECIPIENT_EMAIL", "")).strip()
+
+    if not all([sender_email, app_password, recipient]):
+        logger.warning("Missing Gmail credentials (SENDER_EMAIL, GMAIL_APP_PASSWORD, RECIPIENT_EMAIL). Skipping email.")
+        return False
+
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = sender_email
+        msg["To"] = recipient
+        # Encode subject to handle emojis
+        msg["Subject"] = Header(subject, "utf-8")
+
+        # Encode body explicitly
+        body = MIMEText(html_content, "html", "utf-8")
+        msg.attach(body)
+
+        # Connect to Gmail SMTP server
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, app_password)
+            server.send_message(msg)
+        
+        logger.info(f"✓ Email sent to {recipient}")
+        return True
+    except Exception as e:
+        logger.error(f"✗ Failed to send email via Gmail: {e}")
+        return False
+
+
+def build_and_send_digest():
+    """Build the Daily Post Plan from processed articles and send via Gmail."""
+    session = SessionLocal()
+    try:
+        # Get processed drafts that haven't been emailed yet, limit to 5 most recent
+        drafts = (
+            session.query(PostDraft)
+            .join(PostDraft.article)
+            .filter(PostDraft.status == "draft")
+            .order_by(Article.published_at.desc())
+            .limit(5)
+            .all()
+        )
+
+        if not drafts:
+            logger.info("No new drafts to email.")
+            return
+
+        logger.info(f"Found {len(drafts)} processed articles for Daily Plan")
+
+        # Build Email Content
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        subject = f"Daily Post Plan - {date_str}"
+        
+        html_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max_width: 800px; margin: 0 auto;">
+            <h1 style="color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;">Daily Post Plan - {date_str}</h1>
+            <p>Here are your ready-to-post updates for today.</p>
+        """
+
+        for idx, draft in enumerate(drafts, 1):
+            art = draft.article
+            published_date = art.published_at.strftime('%Y-%m-%d') if art.published_at else "Unknown Date"
+            
+            html_body += f"""
+            <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #ddd;">
+                <h2 style="color: #2980b9; margin-top: 0;">{idx}. {art.title}</h2>
+                <p>
+                    <strong>Link:</strong> <a href="{art.url}">{art.url}</a><br>
+                    <strong>Published:</strong> {published_date}
+                </p>
+                
+                <div style="background: #fff; padding: 15px; border-left: 4px solid #27ae60; margin: 15px 0;">
+                    <h3 style="margin-top: 0; color: #27ae60;">Key Concept</h3>
+                    <p style="font-style: italic;">{draft.key_concept}</p>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: #34495e;">LinkedIn Post</h3>
+                    <pre style="background: #fff; padding: 15px; border: 1px solid #eee; white-space: pre-wrap; font-family: inherit;">{draft.post_content}</pre>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: #34495e;">X / Twitter Post</h3>
+                    <pre style="background: #fff; padding: 15px; border: 1px solid #eee; white-space: pre-wrap; font-family: inherit;">{draft.x_post}</pre>
+                </div>
+
+                <div style="background: #fff; padding: 15px; border-left: 4px solid #e67e22;">
+                    <h3 style="margin-top: 0; color: #e67e22;">Layman's Explanation</h3>
+                    <div style="white-space: pre-wrap;">{draft.layman_explanation}</div>
+                </div>
+            </div>
+            """
+            
+            # Mark as emailed
+            draft.status = "emailed"
+
+        html_body += """
+            <p style="color: #7f8c8d; font-size: 0.9em; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+                Generated by AI News Aggregator
+            </p>
+        </body>
+        </html>
+        """
+
+        # Send Email
+        if send_email(subject, html_body):
+            session.commit()
+            logger.info("✓ Daily Post Plan sent successfully!")
+        else:
+            logger.error("✗ Failed to send Daily Post Plan")
+
+    except Exception as e:
+        logger.error(f"Error building digest: {e}")
+    finally:
+        session.close()
