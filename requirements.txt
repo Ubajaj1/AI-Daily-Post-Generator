@@ -153,7 +153,6 @@ numpy==2.3.5
     #   shapely
     #   torchvision
     #   transformers
-ocrmac==1.0.0
     # via docling
 omegaconf==2.3.0
     # via rapidocr
@@ -216,22 +215,17 @@ pygments==2.19.2
     #   rich
 pylatexenc==2.10
     # via docling
-pyobjc-core==12.1
     # via
     #   pyobjc-framework-cocoa
     #   pyobjc-framework-coreml
     #   pyobjc-framework-quartz
     #   pyobjc-framework-vision
-pyobjc-framework-cocoa==12.1
     # via
     #   pyobjc-framework-coreml
     #   pyobjc-framework-quartz
     #   pyobjc-framework-vision
-pyobjc-framework-coreml==12.1
     # via pyobjc-framework-vision
-pyobjc-framework-quartz==12.1
     # via pyobjc-framework-vision
-pyobjc-framework-vision==12.1
     # via ocrmac
 pypdfium2==4.30.0
     # via docling
